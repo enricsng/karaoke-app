@@ -53,7 +53,7 @@ A lightweight, web-based karaoke application built with React for the frontend a
 
 ## Screenshots
 
-![Player](images/Controller.png)
+![Player](/images/Controller.png?raw=true)
 
 ## Future Improvements
 
