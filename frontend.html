@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Frontend</title>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+        }
+
+        /* Fullscreen player */
+        #player-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Compact single-line bottom overlay */
+        #overlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 14px 30px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 10;
+            font-size: 2.8vw;
+            white-space: nowrap;
+            overflow: hidden;
+            border-top: 2px solid rgba(100, 200, 100, 0.5);
+        }
+
+        #status-text {
+            display: inline-block;
+            padding-left: 100%; /* Start off-screen for marquee effect */
+            animation: scroll-left 30s linear infinite;
+        }
+
+        /* Marquee animation */
+        @keyframes scroll-left {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Pause animation on hover (optional - for debugging) */
+        /* #overlay:hover #status-text { animation-play-state: paused; } */
+
+        /* Responsive font size */
+        @media (max-width: 1200px) {
+            #overlay { font-size: 3.5vw; padding: 12px 20px; }
+        }
+
+        @media (max-width: 768px) {
+            #overlay { font-size: 5vw; padding: 10px 15px; }
+        }
+
+        @media (max-width: 480px) {
+            #overlay { font-size: 6vw; }
+        }
+
+        /* Stronger highlight for requestors */
+        .requestor {
+            color: #a0ffa0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="player-container">
+        <div id="player"></div>
+    </div>
+
+    <!-- Compact scrolling overlay -->
+    <div id="overlay">
+        <div id="status-text">
+            Ready for karaoke! Add a song to start.
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let player;
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                videoId: '',
+                playerVars: {
+                    autoplay: 1,
+                    controls: 0,
+                    modestbranding: 1,
+                    rel: 0,
+                    fs: 1,
+                    playsinline: 0
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            console.log('Player ready');
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+                socket.emit('video_ended');
+            }
+        }
+
+        // Build the scrolling text
+        function updateOverlay(current, nextSong) {
+            const textEl = document.getElementById('status-text');
+
+            let text = '';
+
+            if (current) {
+                text += `Now Playing: ${current.videoId} (Requested by <span class="requestor">${current.requestor}</span>)`;
+
+                if (nextSong) {
+                    text += `     •••     Up Next: ${nextSong.videoId} (by <span class="requestor">${nextSong.requestor}</span>)`;
+                }
+            } else {
+                text = 'Ready for karaoke! Add a song to start.';
+            }
+
+            textEl.innerHTML = text;
+
+            // Adjust animation duration based on text length (longer text = faster scroll)
+            const lengthFactor = Math.max(20, text.length / 3);
+            textEl.style.animationDuration = `${lengthFactor}s`;
+        }
+
+        socket.on('queue_update', (data) => {
+            const { queue, current } = data;
+            const nextSong = queue.length > 0 ? queue[0] : null;
+            updateOverlay(current, nextSong);
+        });
+
+        socket.on('set_video', (videoId) => {
+            player.loadVideoById(videoId);
+        });
+
+        socket.on('play', () => player.playVideo());
+        socket.on('pause', () => player.pauseVideo());
+
+        // Initial state
+        updateOverlay(null, null);
+    </script>
+</body>
+</html>

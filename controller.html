@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Controller</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --bg: #f9fafb;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --light-text: #6b7280;
+            --border: #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #111827;
+                --card-bg: #1f2937;
+                --text: #f3f4f6;
+                --light-text: #9ca3af;
+                --border: #374151;
+            }
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            flex: 1;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+            font-size: 2.2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        input[type="text"] {
+            padding: 14px;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        button#add-song {
+            background: var(--primary);
+            color: white;
+        }
+
+        button#add-song:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        button.control {
+            background: #e5e7eb;
+            color: var(--text);
+        }
+
+        button.control:hover {
+            background: #d1d5db;
+            transform: translateY(-2px);
+        }
+
+        button#play { background: var(--success); color: white; }
+        button#play:hover { background: #059669; }
+
+        #queue {
+            margin-top: 30px;
+        }
+
+        #queue h2 {
+            text-align: center;
+            color: var(--primary);
+            margin: 0 0 20px 0;
+        }
+
+        #queue ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #queue li {
+            padding: 16px;
+            background: rgba(99, 102, 241, 0.08);
+            border-radius: 12px;
+            border-left: 5px solid var(--primary);
+            transition: all 0.2s;
+        }
+
+        #queue li.current {
+            background: rgba(16, 185, 129, 0.15);
+            border-left-color: var(--success);
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .requestor {
+            font-size: 0.9em;
+            color: var(--primary);
+            font-weight: 600;
+            margin-top: 6px;
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--light-text);
+            font-style: italic;
+            padding: 30px;
+        }
+
+        @media (max-width: 640px) {
+            h1 { font-size: 1.8rem; }
+            .card { padding: 20px; }
+            .button-group { flex-direction: column; }
+            button { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Karaoke Controller</h1>
+
+        <div class="card">
+            <div class="input-group">
+                <label for="youtubeUrl">YouTube URL</label>
+                <input type="text" id="youtubeUrl" placeholder="https://youtu.be/dQw4w9WgXcQ">
+            </div>
+
+            <div class="input-group">
+                <label for="requestorName">Your Name (will be shown on screen)</label>
+                <input type="text" id="requestorName" placeholder="e.g. Alex">
+            </div>
+
+            <div class="button-group">
+                <button id="add-song" onclick="addVideo()">➕ Add Song</button>
+            </div>
+
+            <div class="button-group" style="margin-top: 20px;">
+                <button id="play" class="control" onclick="playVideo()">▶️ Play</button>
+                <button id="pause" class="control" onclick="pauseVideo()">⏸️ Pause</button>
+            </div>
+        </div>
+
+        <div id="queue" class="card">
+            <h2>Queue</h2>
+            <ul id="queueList">
+                <li class="empty">Queue is empty – add a song to get started! 🎉</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        function addVideo() {
+            const url = document.getElementById('youtubeUrl').value.trim();
+            const name = document.getElementById('requestorName').value.trim() || 'Anonymous';
+
+            const videoId = extractVideoId(url);
+            if (videoId) {
+                socket.emit('add_video', { videoId, requestor: name });
+                document.getElementById('youtubeUrl').value = '';
+                document.getElementById('requestorName').value = '';
+            } else if (url) {
+                alert('Invalid YouTube URL');
+            }
+        }
+
+        function playVideo() { socket.emit('play'); }
+        function pauseVideo() { socket.emit('pause'); }
+
+        function extractVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        // Receive queue updates
+        socket.on('queue_update', (data) => {
+            const { queue, current } = data;
+            renderQueue(queue, current);
+        });
+
+        function renderQueue(queue, current) {
+            const list = document.getElementById('queueList');
+            list.innerHTML = '';
+
+            if (current) {
+                const li = document.createElement('li');
+                li.className = 'current';
+                li.innerHTML = `Now Playing: ${current.videoId}<br><span class="requestor">Requested by ${current.requestor}</span>`;
+                list.appendChild(li);
+            }
+
+            queue.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `${index + 1}. ${item.videoId}<br><span class="requestor">by ${item.requestor}</span>`;
+                list.appendChild(li);
+            });
+
+            if (!current && queue.length === 0) {
+                list.innerHTML = '<li class="empty">Queue is empty – add a song to get started! 🎉</li>';
+            }
+        }
+    </script>
+</body>
+</html>
